@@ -1,0 +1,128 @@
+import { DB } from '../../db/index.js';
+import { ConfigService } from '../../config/config.service.js';
+
+export class AdminController {
+  static async getDashboardData(env) {
+    const users = await DB.list(env, 'u:');
+    const logs = await DB.list(env, 'log:');
+    const settings = await ConfigService.getAllSettings(env);
+    
+    const recentLogs = [];
+    for (const log of logs.keys.slice(-50)) {
+      const data = await DB.get(env, log.name);
+      if (data) recentLogs.push(data);
+    }
+    
+    // Calculate active users today
+    const today = new Date().toISOString().split('T')[0];
+    let activeToday = 0;
+    let totalUsage = 0;
+    
+    for (const userKey of users.keys) {
+      const user = await DB.get(env, userKey.name);
+      if (user) {
+        // Check if user has usage today
+        if (user.usage_daily && user.usage_daily[today]) {
+          activeToday++;
+        }
+        totalUsage += user.total_used || 0;
+      }
+    }
+    
+    return {
+      userCount: users.keys.length,
+      activeToday,
+      totalUsage,
+      logs: recentLogs.reverse(),
+      settings
+    };
+  }
+
+  static async updateSettings(env, settings) {
+    return await ConfigService.updateSettings(env, settings);
+  }
+
+  static async getUsers(env) {
+    const users = await DB.list(env, 'u:');
+    const userList = [];
+    
+    for (const userKey of users.keys) {
+      const user = await DB.get(env, userKey.name);
+      if (user) {
+        userList.push({
+          email: user.email,
+          name: user.name,
+          credits: user.credits,
+          created: user.created,
+          total_used: user.total_used || 0,
+          api_keys_count: user.api_keys?.length || 0,
+          unlocked_models_count: user.unlocked_models?.length || 0
+        });
+      }
+    }
+    
+    return userList;
+  }
+
+  static async getUserLogs(env, email) {
+    const logs = await DB.list(env, `log:`);
+    const userLogs = [];
+    
+    for (const logKey of logs.keys) {
+      const data = await DB.get(env, logKey.name);
+      if (data && data.email === email) {
+        userLogs.push(data);
+      }
+    }
+    
+    return userLogs.reverse();
+  }
+
+  static async deleteUser(env, email) {
+    const user = await DB.get(env, `u:${email}`);
+    if (!user) {
+      return { err: 'User not found' };
+    }
+    
+    // Delete user data
+    await DB.del(env, `u:${email}`);
+    await DB.del(env, `chat:${email}`);
+    
+    // Delete user's logs
+    const logs = await DB.list(env, `log:`);
+    for (const logKey of logs.keys) {
+      const logData = await DB.get(env, logKey.name);
+      if (logData && logData.email === email) {
+        await DB.del(env, logKey.name);
+      }
+    }
+    
+    return { ok: true };
+  }
+
+  static async addCredits(env, email, amount) {
+    const user = await DB.get(env, `u:${email}`);
+    if (!user) {
+      return { err: 'User not found' };
+    }
+    
+    user.credits += amount;
+    await DB.set(env, `u:${email}`, user);
+    
+    return { ok: true, newCredits: user.credits };
+  }
+
+  static async getUserDetails(env, email) {
+    const user = await DB.get(env, `u:${email}`);
+    if (!user) {
+      return null;
+    }
+    
+    const logs = await this.getUserLogs(env, email);
+    
+    return {
+      user,
+      logs
+    };
+  }
+}

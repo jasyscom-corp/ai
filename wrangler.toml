@@ -1,0 +1,33 @@
+name = "ai"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# KV Namespaces
+[[kv_namespaces]]
+binding = "JASYSAI_KV"
+id = "1b9f1b6101684367b599c154c5911dcc"
+preview_id = "jasysai-kv-preview"
+
+# Environment Variables
+[vars]
+ENVIRONMENT = "production"
+SITE_NAME = "JasyAI"
+SITE_URL = "https://ai.jasyscom.workers.dev"
+
+# Secrets (set via: wrangler secret put <KEY>)
+# Required secrets:
+# - OPENROUTER_KEY
+# - ADMIN_USER
+# - ADMIN_PASS
+# - JWT_SECRET
+
+# Limits and Configuration
+# CPU limits removed - not supported on Free plan
+# [limits]
+# cpu_ms = 50000
+
+# Build configuration
+[build]
+command = "npm run build"
+
